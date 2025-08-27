@@ -98,6 +98,7 @@ async def send_request_to_service(
     """
 
     headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+    # print('endpoint:', endpoint, 'req_data:', req_data)
     response = await client.post(endpoint, json=req_data, headers=headers)
     response.raise_for_status()
     return response
@@ -148,9 +149,10 @@ async def handle_completions(request: Request):
         disagg_spec = {
             "req_id": req_id,
             "receiver_host": global_args.decoder_host,
-            "receiver_init_port": global_args.decoder_port,
-            "receiver_alloc_port": global_args.decoder_port,
+            "receiver_init_port": 8300,
+            "receiver_alloc_port": 8400,
         }
+        # print('disagg_spec:', disagg_spec)
         req_data["kv_transfer_params"] = {
             "ret_first_tok": True,
             "disagg_spec": disagg_spec,

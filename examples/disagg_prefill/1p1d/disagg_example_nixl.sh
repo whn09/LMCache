@@ -84,7 +84,7 @@ wait_for_server() {
   echo "Waiting for server on port $port..."
 
   while true; do
-    if curl -s "localhost:${port}/v1/completions" > /dev/null; then
+    if curl -s -X POST "localhost:${port}/v1/completions" > /dev/null; then
       return 0
     fi
 
