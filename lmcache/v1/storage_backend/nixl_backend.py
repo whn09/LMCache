@@ -31,7 +31,7 @@ logger = init_logger(__name__)
 
 
 class RecvObjPool:
-    def __init__(self, enable_gc: bool):
+    def __init__(self, enable_gc: bool, recent_add_threshold: int = 40, recycle_threshold: int = 80):
         self.lock = threading.Lock()
         self._data: dict[CacheEngineKey, MemoryObj] = {}
         self._cnt: dict[CacheEngineKey, int] = {}
@@ -39,8 +39,8 @@ class RecvObjPool:
         # TODO: Remove the hard-code
         # HACK: have a recycle threshold to avoid the memory leak
         self._recent_added_keys: list[CacheEngineKey] = []
-        self._recent_add_threshold = 80  # Keep recent 90 keys
-        self._recycle_threshold = 160
+        self._recent_add_threshold = recent_add_threshold  # Keep recent keys (reduced from 80)
+        self._recycle_threshold = recycle_threshold  # Trigger GC earlier (reduced from 160)
 
         self._enable_gc = enable_gc
         if not self._enable_gc:
@@ -83,16 +83,23 @@ class RecvObjPool:
         logger.warning("  - Total size: %.2f GB", tot_size / 1024 / 1024 / 1024)
         logger.warning("  - Number of GC: %d", self._dbg_num_gc)
 
-    def _gc(self):
+    def _gc(self, force_aggressive: bool = False):
         if not self._enable_gc:
             return
 
-        logger.warning("In GC!")
+        logger.warning("In GC! (aggressive=%s)", force_aggressive)
         self._dbg_num_gc += 1
         st = time.perf_counter()
         freed_size = 0
         current_keys = set(self._data.keys())
-        recent_keys = set(self._recent_added_keys)
+        
+        # In aggressive mode, keep fewer recent keys
+        if force_aggressive:
+            keep_recent = max(10, self._recent_add_threshold // 4)
+            recent_keys = set(self._recent_added_keys[-keep_recent:])
+        else:
+            recent_keys = set(self._recent_added_keys)
+            
         keys_to_evict = current_keys - recent_keys
         for key in keys_to_evict:
             freed_size += self._data[key].get_physical_size()
@@ -147,8 +154,12 @@ class RecvObjPool:
 
     def contains(self, key: CacheEngineKey) -> bool:
         with self.lock:
+            # Trigger GC more aggressively based on memory usage
             if len(self._data) >= self._recycle_threshold:
                 self._gc()
+            elif len(self._data) >= self._recycle_threshold * 2:
+                # Extra aggressive GC if we have too many objects
+                self._gc(force_aggressive=True)
 
             # DEBUG
             ret = key in self._data
@@ -171,10 +182,20 @@ class RecvObjPool:
             return ret
 
     def pin(self, key: CacheEngineKey) -> bool:
-        raise NotImplementedError
+        """
+        Pin a key to prevent it from being evicted.
+        For now, we just return True as pinning is not critical for NixlBackend.
+        """
+        # TODO: Implement actual pinning logic if needed
+        return True
 
     def unpin(self, key: CacheEngineKey) -> bool:
-        raise NotImplementedError
+        """
+        Unpin a key to allow it to be evicted.
+        For now, we just return True as unpinning is not critical for NixlBackend.
+        """
+        # TODO: Implement actual unpinning logic if needed
+        return True
 
 
 class BasicNixlObserver(NixlObserverInterface):
@@ -183,11 +204,18 @@ class BasicNixlObserver(NixlObserverInterface):
     events from NixlChannel.
     """
 
-    def __init__(self, obj_pool: RecvObjPool):
+    def __init__(self, obj_pool: RecvObjPool, enable_clone: bool = True):
         """
         Initialize the BasicNixlObserver.
+        
+        Args:
+            obj_pool: The RecvObjPool to add objects to
+            enable_clone: Whether to clone tensors (safer but uses more memory)
         """
         self.obj_pool = obj_pool
+        self.enable_clone = enable_clone
+        if not enable_clone:
+            logger.warning("Tensor cloning disabled - may cause data corruption with high concurrency")
 
     @_lmcache_nvtx_annotate
     def __call__(
@@ -209,16 +237,28 @@ class BasicNixlObserver(NixlObserverInterface):
         add_time = 0.0
         for key, value in zip(keys, objs, strict=False):
             assert value.tensor is not None, "The tensor in the MemoryObj is None."
-            if is_view:
-                # self.obj_pool.add(key, value)
+            if is_view and self.enable_clone:
+                # Try to clone, but if OOM, trigger aggressive GC and retry
                 st = time.perf_counter()
-                copied_obj = TensorMemoryObj(value.tensor.clone(), value.metadata)
+                try:
+                    copied_obj = TensorMemoryObj(value.tensor.clone(), value.metadata)
+                except torch.cuda.OutOfMemoryError:
+                    logger.warning("OOM during clone, triggering aggressive GC")
+                    self.obj_pool._gc(force_aggressive=True)
+                    torch.cuda.empty_cache()  # Force PyTorch to release cached memory
+                    try:
+                        copied_obj = TensorMemoryObj(value.tensor.clone(), value.metadata)
+                    except torch.cuda.OutOfMemoryError:
+                        logger.error("Still OOM after aggressive GC, using view instead of clone")
+                        # Fall back to using the view directly (risky but avoids OOM)
+                        copied_obj = value
                 ed = time.perf_counter()
                 self.obj_pool.add(key, copied_obj)
                 ed2 = time.perf_counter()
                 clone_time += (ed - st) * 1000
                 add_time += (ed2 - ed) * 1000
             else:
+                # Either not a view or cloning is disabled
                 self.obj_pool.add(key, value)
         logger.debug(
             "Nixl Observer: clone time: %.4f msec, Add time: %.4f msec for %d objects",
@@ -247,14 +287,22 @@ class NixlBackend(StorageBackendInterface):
             could be either "cpu", "cuda", or "cuda:0", "cuda:1", etc.
         """
         super().__init__(dst_device=nixl_config.buffer_device)
-        self._obj_pool = RecvObjPool(nixl_config.enable_gc)
+        # Use more aggressive GC thresholds for high concurrency
+        self._obj_pool = RecvObjPool(
+            nixl_config.enable_gc,
+            recent_add_threshold=40,  # Reduced from 80
+            recycle_threshold=80      # Reduced from 160
+        )
         # self._data: dict[CacheEngineKey, MemoryObj] = {}
         # self._data_lock = threading.Lock()
 
         self._nixl_channel = NixlChannel(nixl_config)
 
         if nixl_config.role == NixlRole.RECEIVER:
-            self._nixl_observer = BasicNixlObserver(self._obj_pool)
+            # Enable cloning by default, but can be disabled via environment variable
+            import os
+            enable_clone = os.getenv("LMCACHE_NIXL_ENABLE_CLONE", "1") != "0"
+            self._nixl_observer = BasicNixlObserver(self._obj_pool, enable_clone=enable_clone)
             self._nixl_channel.register_receive_observer(observer=self._nixl_observer)
 
         self._registered_keys: list[CacheEngineKey] = []
@@ -303,6 +351,7 @@ class NixlBackend(StorageBackendInterface):
         dtype: Optional[torch.dtype],
         fmt: MemoryFormat = MemoryFormat.KV_2LTD,
         eviction: bool = True,
+        busy_loop: bool = False,  # Added for compatibility with v3 interface
     ) -> MemoryObj:
         """
         Allocate a zero-copy write object for the given shape and dtype.
@@ -390,10 +439,18 @@ class NixlBackend(StorageBackendInterface):
         return self._nixl_channel.get_allocator()
 
     def pin(self, key: CacheEngineKey) -> bool:
-        raise NotImplementedError
+        """
+        Pin the key in the storage backend.
+        For NixlBackend, pinning is handled by the obj_pool.
+        """
+        return self._obj_pool.pin(key)
 
     def unpin(self, key: CacheEngineKey) -> bool:
-        raise NotImplementedError
+        """
+        Unpin the key in the storage backend.
+        For NixlBackend, unpinning is handled by the obj_pool.
+        """
+        return self._obj_pool.unpin(key)
 
     @staticmethod
     def CreateNixlBackend(

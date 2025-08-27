@@ -81,6 +81,8 @@ def parse_args():
     parser.add_argument("--prefiller-port", type=int, default=8100)
     parser.add_argument("--decoder-host", type=str, default="localhost")
     parser.add_argument("--decoder-port", type=int, default=8200)
+    parser.add_argument("--nixl-receiver-host", type=str, default="localhost")
+    parser.add_argument("--nixl-receiver-port", type=int, default=55555)
     args = parser.parse_args()
     return args
 
@@ -148,9 +150,9 @@ async def handle_completions(request: Request):
         req_data["max_tokens"] = 1
         disagg_spec = {
             "req_id": req_id,
-            "receiver_host": global_args.decoder_host,
-            "receiver_init_port": 8300,
-            "receiver_alloc_port": 8400,
+            "receiver_host": global_args.nixl_receiver_host,
+            "receiver_init_port": global_args.nixl_receiver_port,
+            "receiver_alloc_port": global_args.nixl_receiver_port+1,
         }
         # print('disagg_spec:', disagg_spec)
         req_data["kv_transfer_params"] = {

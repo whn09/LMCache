@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Callable, Optional, Union
 import abc
+import math
 import threading
 import time
 import uuid
@@ -73,7 +74,11 @@ class NixlBufferAllocator(MemoryAllocatorInterface):
         )
 
         # check the size and capacity
-        required_size = metadata.get_size()
+        # Calculate size from metadata (similar to TensorMemoryObj.get_size())
+        import math
+        num_elements = math.prod(metadata.shape)
+        element_size = metadata.dtype.itemsize if metadata.dtype else 1
+        required_size = num_elements * element_size
         assert self.allocated_size + required_size <= self.capacity, (
             "The object size is larger than the NIXL buffer capacity. "
             "Consider decreasing `max_batched_tokens` in vllm config"
@@ -423,7 +428,10 @@ class NixlPipe:
         offset = 0
         ret = []
         for metadata in metadatas:
-            obj_size = metadata.get_size()
+            # Calculate size from metadata (similar to TensorMemoryObj.get_size())
+            num_elements = math.prod(metadata.shape)
+            element_size = metadata.dtype.itemsize if metadata.dtype else 1
+            obj_size = num_elements * element_size
             if offset + obj_size > self.nixl_config.buffer_size:
                 break
             obj = TensorMemoryObj(

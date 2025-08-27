@@ -84,7 +84,7 @@ wait_for_server() {
   echo "Waiting for server on port $port..."
 
   while true; do
-    if curl -s -X POST "localhost:${port}/v1/completions" > /dev/null; then
+    if curl -s "localhost:${port}/v1/completions" > /dev/null; then
       return 0
     fi
 
@@ -132,6 +132,8 @@ main() {
         --prefiller-port 8100 \
         --decoder-host localhost \
         --decoder-port 8200  \
+        --nixl-receiver-host localhost \
+        --nixl-receiver-port 55555  \
         > >(tee proxy.log)    2>&1 &
     proxy_pid=$!
     PIDS+=($proxy_pid)
