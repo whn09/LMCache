@@ -4,6 +4,7 @@ max_local_disk_size: 0
 remote_serde: NULL
 
 enable_nixl: True
+enable_xpyd: True
 nixl_role: "sender"
 nixl_receiver_host: "localhost"
 nixl_receiver_port: 55555

@@ -130,6 +130,7 @@ def round_robin_pick_client(clients, idx):
 async def handle_completions(request: Request):
     global counter, stats_calculator
     counter += 1
+    req_id = str(counter)  # we use counter as req_id
 
     st = time.time()
     try:
@@ -150,7 +151,17 @@ async def handle_completions(request: Request):
         org_max_tokens = req_data["max_tokens"]
         req_data["prompt"] = tokenize_output["tokens"]
         req_data["max_tokens"] = 1
-        req_data["kv_transfer_params"] = {"ret_first_tok": True}
+        disagg_spec = {
+            "req_id": req_id,
+            "receiver_host": global_args.decoder_host,
+            "receiver_init_port": global_args.decoder_port,
+            "receiver_alloc_port": global_args.decoder_port,
+        }
+        req_data["kv_transfer_params"] = {
+            "ret_first_tok": True,
+            "disagg_spec": disagg_spec,
+        }
+        # req_data["kv_transfer_params"] = {"ret_first_tok": True}
         req_data["stream"] = False
         stream_options = req_data.pop("stream_options", None)
 
