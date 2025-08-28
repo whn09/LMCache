@@ -1,0 +1,7 @@
+# Requirements for MLA simple example
+lmcache>=0.1.0
+vllm>=0.5.0
+openai>=1.0.0
+transformers>=4.30.0
+requests>=2.28.0
+pyyaml>=6.0

@@ -1,0 +1,45 @@
+# LMCache configuration for MLA models (e.g., DeepSeek-V2-Lite)
+# This configuration is optimized for MLA without prefill-decode separation
+
+# Chunk size for KV cache operations
+chunk_size: 256
+
+# Local storage configuration
+# Using CPU memory for local caching
+local_cpu: true
+max_local_cpu_size: 10.0  # Maximum CPU memory in GB for caching
+
+# Remote storage configuration (optional)
+# Uncomment and configure if using remote storage
+# remote_backend: "redis"
+# remote_host: "localhost"
+# remote_port: 6379
+
+# Serialization settings
+# MLA models require naive serde for proper operation
+remote_serde: "naive"
+
+# Layer-wise operations
+# MLA models don't support layerwise operations yet
+use_layerwise: false
+
+# Cache persistence
+# Set to true if you want to save decode cache for reuse
+save_decode_cache: true
+
+# Timeout settings
+blocking_timeout_secs: 30
+
+# Optional: Enable GPU memory for faster access
+# local_device: "cuda"
+# max_local_gpu_size: 4.0  # GB
+
+# Optional: Enable compression (experimental for MLA)
+# enable_compression: false
+
+# Optional: Cache eviction policy
+# eviction_policy: "lru"  # Options: lru, fifo, lfu
+
+# Optional: Monitoring and logging
+# enable_metrics: true
+# log_level: "info"
