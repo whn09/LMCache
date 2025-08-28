@@ -1,0 +1,26 @@
+# LMCache configuration for MLA decoder (DeepSeek-V2-Lite)
+chunk_size: 256
+
+# Local storage settings
+local_cpu: True
+max_local_cpu_size: 10.0
+
+# NIXL settings for receiver (decoder)
+enable_nixl: True
+nixl_role: "receiver"
+nixl_receiver_host: "0.0.0.0"
+nixl_receiver_port: 55555
+nixl_buffer_size: 17179869184  # 16GB
+nixl_buffer_device: "cuda"
+nixl_enable_gc: True
+
+# MLA specific settings
+# MLA models only work with naive serde
+remote_serde: "naive"
+
+# Disable layerwise for MLA (not supported yet)
+use_layerwise: False
+
+# Other settings
+save_decode_cache: False
+blocking_timeout_secs: 30
