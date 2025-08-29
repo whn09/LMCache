@@ -17,7 +17,7 @@ def demonstrate_cache_benefit(api_base="http://localhost:8000/v1",
     """
     client = OpenAI(api_key="EMPTY", base_url=api_base)
     
-    # Use a longer context to make cache benefits more apparent
+    # Use a much longer context to make cache benefits more apparent
     long_context = """
     The transformer architecture has revolutionized natural language processing
     through its self-attention mechanism. Multi-head attention allows models to
@@ -34,7 +34,27 @@ def demonstrate_cache_benefit(api_base="http://localhost:8000/v1",
     value projections, leading to substantial memory overhead. MLA instead uses
     a shared latent representation that is then projected to head-specific
     keys and values, achieving significant compression ratios.
-    """
+    
+    The benefits of MLA become even more pronounced in production environments
+    where multiple inference requests may share common prefixes or contexts.
+    By enabling efficient KV cache sharing and reuse, MLA can dramatically
+    reduce both memory consumption and computation time. This is especially
+    valuable for applications like chatbots, code assistants, and document
+    analysis systems where context reuse is common.
+    
+    Furthermore, MLA's compression doesn't significantly impact model quality.
+    Empirical studies have shown that MLA models can achieve comparable or
+    even superior performance to traditional multi-head attention while using
+    a fraction of the memory. This makes MLA particularly attractive for
+    deploying large language models in resource-constrained environments.
+    
+    The implementation of MLA requires careful consideration of the latent
+    dimension size and the projection mechanisms. Too small a latent dimension
+    may lose important information, while too large defeats the purpose of
+    compression. Modern MLA implementations like those in DeepSeek models
+    have found effective balance points that maximize both efficiency and
+    model capability.
+    """ * 3  # Repeat to make it even longer
     
     prompt = long_context + "\n\nQuestion: What is the main benefit of MLA?"
     

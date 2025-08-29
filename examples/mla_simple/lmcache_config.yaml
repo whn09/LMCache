@@ -5,9 +5,11 @@
 chunk_size: 256
 
 # Local storage configuration
-# Using CPU memory for local caching
+# Using both GPU and CPU memory for better performance
+local_device: "cuda"
+max_local_gpu_size: 4.0  # GPU memory in GB for caching
 local_cpu: true
-max_local_cpu_size: 10.0  # Maximum CPU memory in GB for caching
+max_local_cpu_size: 10.0  # CPU memory in GB for caching
 
 # Remote storage configuration (optional)
 # Uncomment and configure if using remote storage
@@ -26,13 +28,20 @@ use_layerwise: false
 # Cache persistence
 # Set to true if you want to save decode cache for reuse
 save_decode_cache: true
+save_prefix_cache: true
 
 # Timeout settings
 blocking_timeout_secs: 30
 
-# Optional: Enable GPU memory for faster access
-# local_device: "cuda"
-# max_local_gpu_size: 4.0  # GB
+# Enable cache for better performance
+enable_cache: true
+
+# Cache retrieval settings
+retrieval_method: "auto"  # auto, exact, or similarity
+
+# Logging for debugging
+log_level: "info"
+
 
 # Optional: Enable compression (experimental for MLA)
 # enable_compression: false

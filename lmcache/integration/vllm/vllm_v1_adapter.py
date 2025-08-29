@@ -462,9 +462,13 @@ def _init_lmcache_engine(
         VLLMPagedMemLayerwiseGPUConnector,
     ]
 
+    # Validate MLA compatibility with layerwise
     if use_mla and lmcache_config.use_layerwise:
-        raise ValueError("layerwise MLA connector is not supported yet")
-
+        logger.warning(
+            "MLA models with layerwise support is experimental and may not work correctly. "
+            "Consider setting use_layerwise=False for stable operation."
+        )
+    
     # When use_mla is True, num_kv_head is 1
     hidden_dim_size = num_kv_head * head_size
     if lmcache_config.use_layerwise:
@@ -477,6 +481,7 @@ def _init_lmcache_engine(
                 chunk_size=chunk_size,
                 dtype=kv_dtype,
                 device=device,
+                use_mla=use_mla,
             )
         else:
             vllm_gpu_connector = VLLMPagedMemLayerwiseGPUConnector(
@@ -486,6 +491,7 @@ def _init_lmcache_engine(
                 chunk_size=chunk_size,
                 dtype=kv_dtype,
                 device=device,
+                use_mla=use_mla,
             )
     else:
         vllm_gpu_connector = VLLMPagedMemGPUConnectorV2(

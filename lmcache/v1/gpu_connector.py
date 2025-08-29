@@ -308,6 +308,7 @@ class VLLMBufferLayerwiseGPUConnector(GPUConnectorInterface):
     ):
         self.hidden_dim_size = hidden_dim_size
         self.num_layers = num_layers
+        self.use_mla = kwargs.get("use_mla", False)
 
         self.kvcaches: Optional[List[torch.Tensor]] = None
 
@@ -367,7 +368,8 @@ class VLLMBufferLayerwiseGPUConnector(GPUConnectorInterface):
             max_tokens = k_cache_shape_per_layer[0] * k_cache_shape_per_layer[1]
 
             logger.info(f"Lazily initializing GPU buffer (max tokens={max_tokens}).")
-            num_elements = k_cache_shape_per_layer.numel() * 2
+            kv_size = 1 if self.use_mla else 2
+            num_elements = k_cache_shape_per_layer.numel() * kv_size
             gpu_buffer_size = num_elements * self.element_size
             self.gpu_buffer_allocator = GPUMemoryAllocator(
                 gpu_buffer_size, device=self.device
@@ -382,7 +384,11 @@ class VLLMBufferLayerwiseGPUConnector(GPUConnectorInterface):
             raise ValueError(f"Layer {layer_id} is not loaded into GPU buffer.")
 
         gpu_buffer = self.buffer_mapping[layer_id].tensor
-        return gpu_buffer[0], gpu_buffer[1]
+        if self.use_mla:
+            # For MLA, return the same tensor twice (as a placeholder)
+            return gpu_buffer[0], gpu_buffer[0]
+        else:
+            return gpu_buffer[0], gpu_buffer[1]
 
     def to_gpu(self, memory_obj: MemoryObj, start: int, end: int, **kwargs):
         """ """
@@ -494,7 +500,8 @@ class VLLMBufferLayerwiseGPUConnector(GPUConnectorInterface):
                     compute_gpu_buffer_obj,
                 )
 
-                if self.cache_positions:
+                if self.cache_positions and not self.use_mla:
+                    # RoPE is only applied for non-MLA models
                     assert compute_gpu_buffer_obj.tensor is not None
 
                     compute_gpu_buffer_obj.tensor[0] = self.fused_rotary_emb(
@@ -646,14 +653,21 @@ class VLLMBufferLayerwiseGPUConnector(GPUConnectorInterface):
                     strict=False,
                 ):
                     assert memory_obj.tensor is not None
-                    memory_obj.tensor[0].copy_(
-                        tmp_gpu_buffer_obj.tensor[0][buf_start:buf_end],
-                        non_blocking=True,
-                    )
-                    memory_obj.tensor[1].copy_(
-                        tmp_gpu_buffer_obj.tensor[1][buf_start:buf_end],
-                        non_blocking=True,
-                    )
+                    if self.use_mla:
+                        # For MLA, only copy one tensor
+                        memory_obj.tensor[0].copy_(
+                            tmp_gpu_buffer_obj.tensor[0][buf_start:buf_end],
+                            non_blocking=True,
+                        )
+                    else:
+                        memory_obj.tensor[0].copy_(
+                            tmp_gpu_buffer_obj.tensor[0][buf_start:buf_end],
+                            non_blocking=True,
+                        )
+                        memory_obj.tensor[1].copy_(
+                            tmp_gpu_buffer_obj.tensor[1][buf_start:buf_end],
+                            non_blocking=True,
+                        )
                     if self.cache_positions:
                         memory_obj.metadata.old_positions = old_positions
 
@@ -666,7 +680,8 @@ class VLLMBufferLayerwiseGPUConnector(GPUConnectorInterface):
         yield
 
     def get_shape(self, num_tokens: int) -> torch.Size:
-        return torch.Size([2, num_tokens, self.hidden_dim_size])
+        kv_size = 1 if self.use_mla else 2
+        return torch.Size([kv_size, num_tokens, self.hidden_dim_size])
 
 
 class VLLMPagedMemLayerwiseGPUConnector(GPUConnectorInterface):
@@ -682,6 +697,7 @@ class VLLMPagedMemLayerwiseGPUConnector(GPUConnectorInterface):
         self.hidden_dim_size = hidden_dim_size
         self.num_layers = num_layers
         self.use_gpu = use_gpu
+        self.use_mla = kwargs.get("use_mla", False)
 
         self.gpu_buffer_allocator = None
 
@@ -734,7 +750,8 @@ class VLLMPagedMemLayerwiseGPUConnector(GPUConnectorInterface):
             max_tokens = k_cache_shape_per_layer[0] * k_cache_shape_per_layer[1]
 
             logger.info(f"Lazily initializing GPU buffer (max tokens={max_tokens}).")
-            num_elements = k_cache_shape_per_layer.numel() * 2
+            kv_size = 1 if self.use_mla else 2
+            num_elements = k_cache_shape_per_layer.numel() * kv_size
             gpu_buffer_size = num_elements * self.element_size
             self.gpu_buffer_allocator = GPUMemoryAllocator(
                 gpu_buffer_size, device=self.device
@@ -969,7 +986,8 @@ class VLLMPagedMemLayerwiseGPUConnector(GPUConnectorInterface):
         yield
 
     def get_shape(self, num_tokens: int) -> torch.Size:
-        return torch.Size([num_tokens, 2, self.hidden_dim_size])
+        kv_size = 1 if self.use_mla else 2
+        return torch.Size([num_tokens, kv_size, self.hidden_dim_size])
 
 
 class SGLangGPUConnector(GPUConnectorInterface):

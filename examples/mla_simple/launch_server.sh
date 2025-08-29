@@ -74,4 +74,4 @@ python -m vllm.entrypoints.openai.api_server \
     --disable-log-requests \
     --enforce-eager \
     --kv-transfer-config \
-    '{"kv_connector":"LMCacheConnectorV1", "kv_role":"kv_both"}'
+    '{"kv_connector":"LMCacheConnectorV1", "kv_role":"kv_both", "kv_cache_config_path":"'$LMCACHE_CONFIG'"}'
