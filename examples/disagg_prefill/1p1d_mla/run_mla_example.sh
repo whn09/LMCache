@@ -193,10 +193,6 @@ main() {
         --trust-remote-code \
         --dtype auto"
 
-        # --kv-connector lmcache \
-        # --kv-role reuse \
-        # --kv-transfer-mode decode \
-
     if ! start_service "Decoder" "$DECODER_CMD" "$LOG_DIR/decoder.log"; then
         print_error "Failed to start Decoder service"
         exit 1
@@ -222,10 +218,6 @@ main() {
         --disable-log-requests \
         --trust-remote-code \
         --dtype auto"
-    
-        # --kv-connector lmcache \
-        # --kv-role fill \
-        # --kv-transfer-mode prefill \
 
     if ! start_service "Prefiller" "$PREFILLER_CMD" "$LOG_DIR/prefiller.log"; then
         print_error "Failed to start Prefiller service"
