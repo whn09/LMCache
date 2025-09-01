@@ -30,6 +30,8 @@ if [[ $1 == "prefiller1" ]]; then
         CUDA_VISIBLE_DEVICES=0 \
         vllm serve $MODEL \
         --port 7100 \
+        --gpu-memory-utilization 0.5 \
+        --max-model-len 32768 \
         --disable-log-requests \
         --enforce-eager \
         --no-enable-prefix-caching \
@@ -47,6 +49,8 @@ elif [[ $1 == "prefiller2" ]]; then
         CUDA_VISIBLE_DEVICES=1 \
         vllm serve $MODEL \
         --port 7101 \
+        --gpu-memory-utilization 0.5 \
+        --max-model-len 32768 \
         --disable-log-requests \
         --enforce-eager \
         --no-enable-prefix-caching \
@@ -66,6 +70,8 @@ elif [[ $1 == "decoder1" ]]; then
         CUDA_VISIBLE_DEVICES=2 \
         vllm serve $MODEL \
         --port 7200 \
+        --gpu-memory-utilization 0.5 \
+        --max-model-len 32768 \
         --disable-log-requests \
         --enforce-eager \
         --no-enable-prefix-caching \
@@ -83,6 +89,8 @@ elif [[ $1 == "decoder2" ]]; then
         CUDA_VISIBLE_DEVICES=3 \
         vllm serve $MODEL \
         --port 7201 \
+        --gpu-memory-utilization 0.5 \
+        --max-model-len 32768 \
         --disable-log-requests \
         --enforce-eager \
         --no-enable-prefix-caching \

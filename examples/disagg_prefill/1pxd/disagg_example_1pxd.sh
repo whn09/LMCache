@@ -115,31 +115,30 @@ main() {
     echo "Launching prefiller, decoder and proxy..."
     echo "Please check prefiller.log, decoder.log and proxy.log for logs."
 
-    # Launch the decoder first
-    bash disagg_vllm_launcher.sh decoder  \
-        > >(tee decoder.log)  2>&1 &
-    decoder_pid=$!
-    PIDS+=($decoder_pid)
-    wait_for_server 8200
-
-    # Launch the prefillers next
-    bash disagg_vllm_launcher.sh prefiller1 \
-        > >(tee prefiller1.log) 2>&1 &
+    # Launch the prefiller next
+    bash disagg_vllm_launcher.sh prefiller \
+        > >(tee prefiller.log) 2>&1 &
     prefiller_pid=$!
     PIDS+=($prefiller_pid)
 
-    sleep 5  # Don't launch the second prefiller too quickly
-    bash disagg_vllm_launcher.sh prefiller2 \
-        > >(tee prefiller2.log) 2>&1 &
-    prefiller2_pid=$!
-    PIDS+=($prefiller2_pid)
+    sleep 5  # Launch the docoders next
+    bash disagg_vllm_launcher.sh decoder1 \
+        > >(tee decoder1.log) 2>&1 &
+    decoder1_pid=$!
+    PIDS+=($decoder1_pid)
+
+    sleep 5  # Don't launch the second docoder too quickly
+    bash disagg_vllm_launcher.sh decoder2 \
+        > >(tee decoder2.log) 2>&1 &
+    decoder2_pid=$!
+    PIDS+=($decoder2_pid)
 
     python3 disagg_proxy_server_first_token_from_prefiller.py \
         --host localhost \
         --port 9000 \
         --prefiller-host localhost \
         --prefiller-port 8100 \
-        --num-prefillers 2 \
+        --num-decoders 2 \
         --decoder-host localhost \
         --decoder-port 8200  \
         --nixl-receiver-host localhost \
@@ -149,7 +148,8 @@ main() {
     PIDS+=($proxy_pid)
 
     wait_for_server 8100
-    wait_for_server 8101
+    wait_for_server 8200
+    wait_for_server 8201
     wait_for_server 9000
 
     echo "==================================================="

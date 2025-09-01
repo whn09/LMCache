@@ -24,7 +24,7 @@ export LMCACHE_LOG_LEVEL=info
 
 # For MLA models
 export LMCACHE_REMOTE_SERDE=naive
-export LMCACHE_USE_LAYERWISE=False
+export LMCACHE_USE_LAYERWISE=True
 
 # Debug: Show LMCache is enabled
 export LMCACHE_ENABLED=True
@@ -35,6 +35,9 @@ echo "  LMCACHE_LOCAL_CPU=$LMCACHE_LOCAL_CPU"
 echo "  LMCACHE_MAX_LOCAL_CPU_SIZE=$LMCACHE_MAX_LOCAL_CPU_SIZE"
 echo "  LMCACHE_REMOTE_SERDE=$LMCACHE_REMOTE_SERDE"
 echo "========================================"
+
+# Activate virtual environment
+source /home/ubuntu/lmcache_test/.venv/bin/activate
 
 # Launch vLLM with proper KV transfer config
 python -m vllm.entrypoints.openai.api_server \

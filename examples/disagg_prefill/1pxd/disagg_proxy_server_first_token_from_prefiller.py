@@ -20,23 +20,23 @@ async def lifespan(app: FastAPI):
     Lifespan context manager to handle startup and shutdown events.
     """
     # Startup: Initialize clients
-    decoder_base_url = f"http://{global_args.decoder_host}:{global_args.decoder_port}"
+    prefiller_base_url = f"http://{global_args.prefiller_host}:{global_args.prefiller_port}"
 
-    app.state.prefill_clients = []
-    for i in range(global_args.num_prefillers):
-        port = int(global_args.prefiller_port) + i
-        prefiller_base_url = f"http://{global_args.prefiller_host}:{port}"
-        prefill_client = httpx.AsyncClient(timeout=None, base_url=prefiller_base_url)
-        app.state.prefill_clients.append(prefill_client)
+    app.state.decode_clients = []
+    for i in range(global_args.num_decoders):
+        port = int(global_args.decoder_port) + i
+        decoder_base_url = f"http://{global_args.decoder_host}:{port}"
+        decode_client = httpx.AsyncClient(timeout=None, base_url=decoder_base_url)
+        app.state.decode_clients.append(decode_client)
 
-    app.state.decode_client = httpx.AsyncClient(timeout=None, base_url=decoder_base_url)
+    app.state.prefill_client = httpx.AsyncClient(timeout=None, base_url=prefiller_base_url)
 
     yield
 
     # Shutdown: Close clients
-    for client in app.state.prefill_clients:
+    for client in app.state.decode_clients:
         await client.aclose()
-    await app.state.decode_client.aclose()
+    await app.state.prefill_client.aclose()
 
 
 # Update FastAPI app initialization to use lifespan
@@ -82,7 +82,7 @@ def parse_args():
     parser.add_argument("--host", type=str, default="localhost")
     parser.add_argument("--prefiller-host", type=str, default="localhost")
     parser.add_argument("--prefiller-port", type=int, default=8100)
-    parser.add_argument("--num-prefillers", type=int, default=1)
+    parser.add_argument("--num-decoders", type=int, default=1)
     parser.add_argument("--decoder-host", type=str, default="localhost")
     parser.add_argument("--decoder-port", type=int, default=8200)
     parser.add_argument("--nixl-receiver-host", type=str, default="localhost")
@@ -92,8 +92,8 @@ def parse_args():
 
 
 # Initialize variables to hold the persistent clients
-app.state.prefill_clients = []
-app.state.decode_client = None
+app.state.prefill_client = None
+app.state.decode_clients = []
 
 
 async def send_request_to_service(
