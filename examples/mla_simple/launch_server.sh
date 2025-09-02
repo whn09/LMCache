@@ -69,8 +69,8 @@ python -m vllm.entrypoints.openai.api_server \
     --port $PORT \
     --tensor-parallel-size $TP_SIZE \
     --trust-remote-code \
-    --max-model-len 32768 \
-    --gpu-memory-utilization 0.9 \
+    --max-model-len 8192 \
+    --gpu-memory-utilization 0.7 \
     --disable-log-requests \
     --enforce-eager \
     --kv-transfer-config \
