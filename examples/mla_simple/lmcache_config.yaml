@@ -20,7 +20,7 @@ remote_serde: "naive"
 
 # Layer-wise operations
 # MLA models don't support layerwise operations yet
-use_layerwise: true
+use_layerwise: False
 
 # Timeout settings
 blocking_timeout_secs: 30
